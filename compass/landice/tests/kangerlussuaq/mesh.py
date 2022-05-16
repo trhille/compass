@@ -64,64 +64,67 @@ class Mesh(Step):
         config = self.config
         section = config['high_res_Kangerlussuaq_mesh']
 
-        logger.info('calling build_cell_wdith')
-        cell_width, x1, y1, geom_points, geom_edges = self.build_cell_width()
-        logger.info('calling build_planar_mesh')
-        build_planar_mesh(cell_width, x1, y1, geom_points,
-                          geom_edges, logger=logger)
-        dsMesh = xarray.open_dataset('base_mesh.nc')
-        logger.info('culling mesh')
-        dsMesh = cull(dsMesh, logger=logger)
-        logger.info('converting to MPAS mesh')
-        dsMesh = convert(dsMesh, logger=logger)
-        logger.info('writing grid_converted.nc')
-        write_netcdf(dsMesh, 'grid_converted.nc')
+#        logger.info('calling build_cell_wdith')
+#        cell_width, x1, y1, geom_points, geom_edges = self.build_cell_width()
+#        logger.info('calling build_planar_mesh')
+#        build_planar_mesh(cell_width, x1, y1, geom_points,
+#                          geom_edges, logger=logger)
+#        dsMesh = xarray.open_dataset('base_mesh.nc')
+#        logger.info('culling mesh')
+#        dsMesh = cull(dsMesh, logger=logger)
+#        logger.info('converting to MPAS mesh')
+#        dsMesh = convert(dsMesh, logger=logger)
+#        logger.info('writing grid_converted.nc')
+#        write_netcdf(dsMesh, 'grid_converted.nc')
         levels = section.get('levels')
-        logger.info('calling create_landice_grid_from_generic_MPAS_grid.py')
-        args = ['create_landice_grid_from_generic_MPAS_grid.py',
-                '-i', 'grid_converted.nc',
-                '-o', 'gis_1km_preCull.nc',
-                '-l', levels, '-v', 'glimmer']
-        check_call(args, logger=logger)
-
-        logger.info('calling interpolate_to_mpasli_grid.py')
-        args = ['interpolate_to_mpasli_grid.py', '-s',
-                'greenland_1km_2020_04_20.epsg3413.icesheetonly.nc', '-d',
-                'gis_1km_preCull.nc', '-m', 'b', '-t']
-
-        check_call(args, logger=logger)
-
+#        logger.info('calling create_landice_grid_from_generic_MPAS_grid.py')
+#        args = ['create_landice_grid_from_generic_MPAS_grid.py',
+#                '-i', 'grid_converted.nc',
+#                '-o', 'gis_1km_preCull.nc',
+#                '-l', levels, '-v', 'glimmer']
+#        check_call(args, logger=logger)
+#
+#        logger.info('calling interpolate_to_mpasli_grid.py')
+#        args = ['interpolate_to_mpasli_grid.py', '-s',
+#                'greenland_1km_2020_04_20.epsg3413.icesheetonly.nc', '-d',
+#                'gis_1km_preCull.nc', '-m', 'b', '-t']
+#
+#        check_call(args, logger=logger)
+#
         # This step is only necessary if you wish to cull a certain
         # distance from the ice margin, within the bounds defined by
         # the GeoJSON file.
-        cullDistance = section.get('cull_distance')
-        if float(cullDistance) > 0.:
-            logger.info('calling define_cullMask.py')
-            args = ['define_cullMask.py', '-f',
-                    'gis_1km_preCull.nc', '-m',
-                    'distance', '-d', cullDistance]
 
-            check_call(args, logger=logger)
-        else:
-            logger.info('cullDistance <= 0 in config file. '
-                        'Will not cull by distance to margin. \n')
+# Culling by distance takes forever and is probably not necessary with this 
+# particular geojson file
+#        cullDistance = section.get('cull_distance')
+#        if float(cullDistance) > 0.:
+#            logger.info('calling define_cullMask.py')
+#            args = ['define_cullMask.py', '-f',
+#                    '/usr/projects/climate/trhille/MPAS_meshes/GIS_1to10km_r01_20220310/GIS_1to10km_r01_20220310.nc', '-m',
+#                    'distance', '-d', cullDistance]
+#
+#            check_call(args, logger=logger)
+#        else:
+#            logger.info('cullDistance <= 0 in config file. '
+#                        'Will not cull by distance to margin. \n')
 
         # This step is only necessary because the GeoJSON region
         # is defined by lat-lon.
         logger.info('calling set_lat_lon_fields_in_planar_grid.py')
         args = ['set_lat_lon_fields_in_planar_grid.py', '-f',
-                'gis_1km_preCull.nc', '-p', 'gis-gimp']
+                '/usr/projects/climate/trhille/MPAS_meshes/GIS_1to10km_r01_20220310/GIS_1to10km_r01_20220310.nc', '-p', 'gis-gimp']
 
         check_call(args, logger=logger)
 
         logger.info('calling MpasMaskCreator.x')
-        args = ['MpasMaskCreator.x', 'gis_1km_preCull.nc',
+        args = ['MpasMaskCreator.x', '/usr/projects/climate/trhille/MPAS_meshes/GIS_1to10km_r01_20220310/GIS_1to10km_r01_20220310.nc',
                 'kangerlussuaq_mask.nc', '-f', 'Kangerlussuaq.geojson']
 
         check_call(args, logger=logger)
 
         logger.info('culling to geojson file')
-        dsMesh = xarray.open_dataset('gis_1km_preCull.nc')
+        dsMesh = xarray.open_dataset('/usr/projects/climate/trhille/MPAS_meshes/GIS_1to10km_r01_20220310/GIS_1to10km_r01_20220310.nc')
         kangerMask = xarray.open_dataset('kangerlussuaq_mask.nc')
         dsMesh = cull(dsMesh, dsInverse=kangerMask, logger=logger)
         write_netcdf(dsMesh, 'kangerlussuaq_culled.nc')
@@ -146,8 +149,8 @@ class Mesh(Step):
 
         logger.info('calling interpolate_to_mpasli_grid.py')
         args = ['interpolate_to_mpasli_grid.py', '-s',
-                'greenland_1km_2020_04_20.epsg3413.icesheetonly.nc',
-                '-d', 'Kangerlussuaq.nc', '-m', 'b', '-t']
+                '/usr/projects/climate/trhille/MPAS_meshes/GIS_1to10km_r01_20220310/GIS_1to10km_r01_20220310.nc',
+                '-d', 'Kangerlussuaq.nc', '-m', 'n']
         check_call(args, logger=logger)
 
         logger.info('Marking domain boundaries dirichlet')
