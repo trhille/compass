@@ -8,6 +8,7 @@ from mpas_tools.mesh.conversion import convert, cull
 from mpas_tools.planar_hex import make_planar_hex_mesh
 from mpas_tools.io import write_netcdf
 from mpas_tools.logging import check_call
+from mpas_tools.scrip.from_mpas import scrip_from_mpas
 
 from compass.step import Step
 from compass.model import make_graph_file
@@ -117,15 +118,27 @@ class Mesh(Step):
 
         check_call(args, logger=logger)
 
-        logger.info('calling interpolate_to_mpasli_grid.py')
-        args = ['interpolate_to_mpasli_grid.py', '-s',
-                'greenland_1km_2020_04_20.epsg3413.icesheetonly.nc',
-                '-d', 'GIS.nc', '-m', 'b']
+        # Add iceMask for later trimming. Could be added to
+        # calling create_landice_grid_from_generic_MPAS_grid.py
+        # if we want to make this a typical feature.
+        data = netCDF4.Dataset('GIS.nc', 'r+')
+        data.createVariable('iceMask', 'f', ('Time', 'nCells'))
+        data.variables['iceMask'][:] = 0.
+        data.close()
+
+        # Uncomment below if you need to create scrip files.
+        logger.info('creating scrip file for BedMachine dataset')
+        args = ['create_SCRIP_file_from_planar_rectangular_grid.py',
+                '-i', data_path+'BedMachineGreenland-2021-04-20_edits_floodFill_extrap.nc',
+                '-s', data_paht+'BedMachineGreenland-2021-04-20.scrip.nc',
+                '-p', 'gis-gimp', '-r', '2']
         check_call(args, logger=logger)
 
-        logger.info('Marking domain boundaries dirichlet')
-        args = ['mark_domain_boundaries_dirichlet.py',
-                '-f', 'GIS.nc']
+        logger.info('creating scrip file for 2006-2010 velocity dataset')
+        args = ['create_SCRIP_file_from_planar_rectangular_grid.py',
+                '-i', data_path+'greenland_vel_mosaic500_extrap.nc',
+                '-s', data_path+'greenland_vel_mosaic500.scrip.nc',
+                '-p', 'gis-gimp', '-r', '2']
         check_call(args, logger=logger)
 
         logger.info('calling set_lat_lon_fields_in_planar_grid.py')
@@ -133,9 +146,88 @@ class Mesh(Step):
                 'GIS.nc', '-p', 'gis-gimp']
         check_call(args, logger=logger)
 
+        logger.info('creating scrip file for destination mesh')
+        scrip_from_mpas('GIS.nc', 'GIS.scrip.nc')
+        args = ['create_SCRIP_file_from_MPAS_mesh.py',
+                '-m', 'GIS.nc',
+                '-s', 'GIS.scrip.nc']
+        check_call(args, logger=logger)
+
+        # Testing shows 5 badger/grizzly nodes works well.
+        # 2 nodes is too few. I have not tested anything in between.
+        logger.info('generating gridded dataset -> MPAS weights')
+        args = ['srun', '-n', nProcs, 'ESMF_RegridWeightGen', '--source',
+                data_path+'BedMachineGreenland-2021-04-20.scrip.nc',
+                '--destination',
+                'GIS.scrip.nc',
+                '--weight', 'BedMachine_to_MPAS_weights.nc',
+                '--method', 'conserve',
+                "-i", "-64bit_offset",
+                "--dst_regional", "--src_regional", '--netcdf4']
+        check_call(args, logger=logger)
+
+        logger.info('generating gridded dataset -> MPAS weights')
+        args = ['srun', '-n', nProcs, 'ESMF_RegridWeightGen', '--source',
+                data_path+'greenland_vel_mosaic500.scrip.nc',
+                '--destination',
+                'GIS.scrip.nc',
+                '--weight', 'measures_to_MPAS_weights.nc',
+                '--method', 'conserve',
+                "-i", "-64bit_offset", '--netcdf4',
+                "--dst_regional", "--src_regional", '--ignore_unmapped']
+        check_call(args, logger=logger)
+
+
+        logger.info('calling interpolate_to_mpasli_grid.py')
+        args = ['interpolate_to_mpasli_grid.py', '-s',
+                'greenland_1km_2020_04_20.epsg3413.icesheetonly.nc',
+                '-d', 'GIS.nc', '-m', 'b']
+        check_call(args, logger=logger)
+
+        # interpoalte fields from BedMachine and Measures
+        # Using conservative remapping
+        logger.info('calling interpolate_to_mpasli_grid.py')
+        args = ['interpolate_to_mpasli_grid.py', '-s',
+                data_path+'BedMachineGreenland-2021-04-20_edits_floodFill_extrap.nc',
+                '-d', 'GIS.nc', '-m', 'e',
+                '-w', 'BedMachine_to_MPAS_weights.nc']
+        check_call(args, logger=logger)
+
+        logger.info('calling interpolate_to_mpasli_grid.py')
+        args = ['interpolate_to_mpasli_grid.py', '-s',
+                data_path+'greenland_vel_mosaic500_extrap.nc',
+                '-d', 'GIS.nc', '-m', 'e',
+                '-w', 'measures2006_2010_to_MPAS_weights.nc',
+                '-v', 'observedSurfaceVelocityX',
+                'observedSurfaceVelocityY',
+                'observedSurfaceVelocityUncertainty']
+        check_call(args, logger=logger)
+
+        logger.info('Marking domain boundaries dirichlet')
+        args = ['mark_domain_boundaries_dirichlet.py',
+                '-f', 'GIS.nc']
+        check_call(args, logger=logger)
+
         logger.info('creating graph.info')
         make_graph_file(mesh_filename='GIS.nc',
                         graph_filename='graph.info')
+        # Create a backup in case clean-up goes awry
+        copyfile('GIS.nc', 'GIS_backup.nc')
+
+        # Clean up: trim to iceMask and set large velocity
+        # uncertainties where appropriate.
+        data = netCDF4.Dataset('GIS.nc', 'r+')
+        data.set_auto_mask(False)
+        data.variables['thickness'][:] *= (data.variables['iceMask'][:] > 1.5)
+        
+        mask = np.logical_or(
+                np.isnan(
+                    data.variables['observedSurfaceVelocityUncertainty'][:]),
+                data.variables['thickness'][:] < 1.0)
+        mask = np.logical_or(
+                mask,
+                data.variables['observedSurfaceVelocityUncertainty'][:] == 0.0)
+        data.variables['observedSurfaceVelocityUncertainty'][0,mask[0,:]] = 1.0
 
     def build_cell_width(self):
         """
