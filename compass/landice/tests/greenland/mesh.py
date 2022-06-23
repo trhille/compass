@@ -75,7 +75,7 @@ class Mesh(Step):
             dsMesh = xarray.open_dataset('base_mesh.nc')
             logger.info('culling mesh')
             dsMesh = cull(dsMesh, logger=logger)
-            
+
         if exists('grid_converted.nc'):
             logger.info('grid_converted.nc exists; skipping')
         else:
@@ -94,7 +94,7 @@ class Mesh(Step):
                 '-o', 'gis_1km_preCull.nc',
                 '-l', levels, '-v', 'glimmer']
             check_call(args, logger=logger)
-            
+
             logger.info('calling interpolate_to_mpasli_grid.py')
             args = ['interpolate_to_mpasli_grid.py', '-s',
                     'greenland_1km_2020_04_20.epsg3413.icesheetonly.nc', '-d',
@@ -110,7 +110,7 @@ class Mesh(Step):
                     'gis_1km_preCull.nc', '-m'
                     'distance', '-d', cullDistance]
             check_call(args, logger=logger)
-            
+
             dsMesh = xarray.open_dataset('gis_1km_preCull.nc') 
             dsMesh = cull(dsMesh, logger=logger)
             write_netcdf(dsMesh, 'greenland_culled.nc')
@@ -127,7 +127,7 @@ class Mesh(Step):
             dsMesh = cull(dsMesh, logger=logger)
             dsMesh = convert(dsMesh, logger=logger)
             write_netcdf(dsMesh, 'greenland_dehorned.nc')
-            
+ 
         if exists('GIS.nc'):
             logger.info('GIS.nc exists; skipping')
         else:
@@ -209,7 +209,7 @@ class Mesh(Step):
                     "-i", "-64bit_offset", '--netcdf4',
                     "--dst_regional", "--src_regional", '--ignore_unmapped']
             check_call(args, logger=logger)
-   
+        
         logger.info('calling interpolate_to_mpasli_grid.py')
         args = ['interpolate_to_mpasli_grid.py', '-s',
                 'greenland_1km_2020_04_20.epsg3413.icesheetonly.nc',
@@ -260,6 +260,19 @@ class Mesh(Step):
                 mask,
                 data.variables['observedSurfaceVelocityUncertainty'][:] == 0.0)
         data.variables['observedSurfaceVelocityUncertainty'][0,mask[0,:]] = 1.0
+
+        # Ensure basalHeatFlux is positive
+        data.variables['basalHeatFlux'][:] = np.abs(data.variables['basalHeatFlux'][:])
+        # Ensure reasonable dHdt values
+        dHdt = data.variables["observedThicknessTendency"][:]
+        dHdtErr = data.variables["observedThicknessTendencyUncertainty"][:]
+        dHdtErr = dHdt * 0.05 # Arbitrary 5% uncertainty; improve this later
+        dHdtErr[dHdt>1.0] = 1.0 # large uncertainty where data is missing
+        dHdt[dHdt>1.0] = 0.0 # Remove ridiculous values
+        data.variables["observedThicknessTendency"][:] = dHdt
+        data.variables["observedThicknessTendencyUncertainty"][:] = dHdtErr
+        
+        data.close()
 
     def build_cell_width(self):
         """
