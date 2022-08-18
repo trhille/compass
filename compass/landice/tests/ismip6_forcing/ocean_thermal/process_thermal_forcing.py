@@ -225,7 +225,7 @@ class ProcessThermalForcing(Step):
                            "lon_vertices", "lat", "lon"])
 
         # transpose dimension
-        ds["thermal_forcing"] = ds["thermal_forcing"].transpose(
+        ds["ismip6shelfMelt_3dThermalForcing"] = ds["ismip6shelfMelt_3dThermalForcing"].transpose(
             "Time", "nCells", "nISMIP6OceanLayers")
 
         # write to a new netCDF file
