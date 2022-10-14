@@ -147,13 +147,13 @@ class Mesh(Step):
             data.close()
 
         # Create scrip files if they don't already exist
-        if exists(data_path+"/"+'BedMachineGreenland-2021-04-20.scrip.nc'):
+        if exists(data_path+"/"+'BedMachineGreenland-v5.scrip.nc'):
             logger.info('BedMachine script file exists; skipping file creation')
         else:
             logger.info('creating scrip file for BedMachine dataset')
             args = ['create_SCRIP_file_from_planar_rectangular_grid.py',
-                    '-i', data_path+"/"+'BedMachineGreenland-2021-04-20_edits_floodFill_extrap.nc',
-                    '-s', data_path+"/"+'BedMachineGreenland-2021-04-20.scrip.nc',
+                    '-i', data_path+"/"+'BedMachineGreenland-v5_edits_floodFill_extrap.nc',
+                    '-s', data_path+"/"+'BedMachineGreenland-v5.scrip.nc',
                     '-p', 'gis-gimp', '-r', '2']
             check_call(args, logger=logger)
         if exists(data_path+"/"+'greenland_vel_mosaic500.scrip.nc'):
@@ -186,8 +186,8 @@ class Mesh(Step):
             logger.info('BedMachine_to_MPAS_weights.nc exists; skipping')
         else:
             logger.info('generating gridded dataset -> MPAS weights')
-            args = ['ESMF_RegridWeightGen', '--source',
-                    data_path+'BedMachineGreenland-2021-04-20.scrip.nc',
+            args = ['srun', '-n', nProcs, 'ESMF_RegridWeightGen', '--source',
+                    data_path+'BedMachineGreenland-v5.scrip.nc',
                     '--destination',
                     'GIS.scrip.nc',
                     '--weight', 'BedMachine_to_MPAS_weights.nc',
@@ -200,7 +200,7 @@ class Mesh(Step):
             logger.info('measures_to_MPAS_weights.nc exists; skipping')
         else:
             logger.info('generating gridded dataset -> MPAS weights')
-            args = ['ESMF_RegridWeightGen', '--source',
+            args = ['srun', '-n', nProcs, 'ESMF_RegridWeightGen', '--source',
                     data_path+'greenland_vel_mosaic500.scrip.nc',
                     '--destination',
                     'GIS.scrip.nc',
@@ -220,7 +220,7 @@ class Mesh(Step):
         # Using conservative remapping
         logger.info('calling interpolate_to_mpasli_grid.py')
         args = ['interpolate_to_mpasli_grid.py', '-s',
-                data_path+"/"+'BedMachineGreenland-2021-04-20_edits_floodFill_extrap.nc',
+                data_path+"/"+'BedMachineGreenland-v5_edits_floodFill_extrap.nc',
                 '-d', 'GIS.nc', '-m', 'e',
                 '-w', 'BedMachine_to_MPAS_weights.nc']
         check_call(args, logger=logger)
