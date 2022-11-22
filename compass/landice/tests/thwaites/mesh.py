@@ -1,5 +1,6 @@
 import netCDF4
 import xarray
+from shutil import copyfile
 
 from mpas_tools.mesh.creation import build_planar_mesh
 from mpas_tools.mesh.conversion import convert, cull
@@ -50,70 +51,72 @@ class Mesh(Step):
         config = self.config
         section = config['high_res_mesh']
 
-        logger.info('calling build_cell_width')
-        cell_width, x1, y1, geom_points, geom_edges = self.build_cell_width()
-        logger.info('calling build_planar_mesh')
-        build_planar_mesh(cell_width, x1, y1, geom_points,
-                          geom_edges, logger=logger)
-        ds_mesh = xarray.open_dataset('base_mesh.nc')
-        logger.info('culling mesh')
-        ds_mesh = cull(ds_mesh, logger=logger)
-        logger.info('converting to MPAS mesh')
-        ds_mesh = convert(ds_mesh, logger=logger)
-        logger.info('writing grid_converted.nc')
-        write_netcdf(ds_mesh, 'grid_converted.nc')
+#        logger.info('calling build_cell_width')
+#        cell_width, x1, y1, geom_points, geom_edges = self.build_cell_width()
+#        logger.info('calling build_planar_mesh')
+#        build_planar_mesh(cell_width, x1, y1, geom_points,
+#                          geom_edges, logger=logger)
+#        ds_mesh = xarray.open_dataset('base_mesh.nc')
+#        logger.info('culling mesh')
+#        ds_mesh = cull(ds_mesh, logger=logger)
+#        logger.info('converting to MPAS mesh')
+#        ds_mesh = convert(ds_mesh, logger=logger)
+#        logger.info('writing grid_converted.nc')
+#        write_netcdf(ds_mesh, 'grid_converted.nc')
 
         levels = section.get('levels')
 
-        logger.info('calling create_landice_grid_from_generic_MPAS_grid.py')
-        args = ['create_landice_grid_from_generic_MPAS_grid.py',
-                '-i', 'grid_converted.nc',
-                '-o', 'ase_1km_preCull.nc',
-                '-l', levels, '-v', 'glimmer']
-        check_call(args, logger=logger)
+#        logger.info('calling create_landice_grid_from_generic_MPAS_grid.py')
+#        args = ['create_landice_grid_from_generic_MPAS_grid.py',
+#                '-i', 'grid_converted.nc',
+#                '-o', 'ase_1km_preCull.nc',
+#                '-l', levels, '-v', 'glimmer']
+#        check_call(args, logger=logger)
+#
+#        # This step uses a subset of the whole Antarctica dataset trimmed to
+#        # the Amundsen Sean Embayment, to speed up interpolation.
+#        # This could also be replaced with the full Antarctic Ice Sheet
+#        # dataset.
+#        logger.info('calling interpolate_to_mpasli_grid.py')
+#        args = ['interpolate_to_mpasli_grid.py', '-s',
+#                'antarctica_1km_2020_10_20_ASE.nc', '-d',
+#                'ase_1km_preCull.nc', '-m', 'b', '-t']
+#
+#        check_call(args, logger=logger)
+#
+#        # This step is only necessary if you wish to cull a certain
+#        # distance from the ice margin, within the bounds defined by
+#        # the GeoJSON file.
+#        cullDistance = section.get('cull_distance')
+#        if float(cullDistance) > 0.:
+#            logger.info('calling define_cullMask.py')
+#            args = ['define_cullMask.py', '-f',
+#                    'ase_1km_preCull.nc', '-m'
+#                    'distance', '-d', cullDistance]
+#
+#            check_call(args, logger=logger)
+#        else:
+#            logger.info('cullDistance <= 0 in config file. '
+#                        'Will not cull by distance to margin. \n')
 
-        # This step uses a subset of the whole Antarctica dataset trimmed to
-        # the Amundsen Sean Embayment, to speed up interpolation.
-        # This could also be replaced with the full Antarctic Ice Sheet
-        # dataset.
-        logger.info('calling interpolate_to_mpasli_grid.py')
-        args = ['interpolate_to_mpasli_grid.py', '-s',
-                'antarctica_1km_2020_10_20_ASE.nc', '-d',
-                'ase_1km_preCull.nc', '-m', 'b', '-t']
-
-        check_call(args, logger=logger)
-
-        # This step is only necessary if you wish to cull a certain
-        # distance from the ice margin, within the bounds defined by
-        # the GeoJSON file.
-        cullDistance = section.get('cull_distance')
-        if float(cullDistance) > 0.:
-            logger.info('calling define_cullMask.py')
-            args = ['define_cullMask.py', '-f',
-                    'ase_1km_preCull.nc', '-m'
-                    'distance', '-d', cullDistance]
-
-            check_call(args, logger=logger)
-        else:
-            logger.info('cullDistance <= 0 in config file. '
-                        'Will not cull by distance to margin. \n')
-
+        copyfile('/global/cscratch1/sd/trhille/AIS_4to20km_r01_20220907/mesh_edits_20221013/AIS_4to20km_r01_20220907_m5_drop_bed_20m_bulldoze_troughs_75_to_400m_Enderby_maxstiffness_0.8_TG_pinning_40maf_bedmap2_surface_ASE.nc',
+                 'AIS_4km.nc')
         # This step is only necessary because the GeoJSON region
         # is defined by lat-lon.
         logger.info('calling set_lat_lon_fields_in_planar_grid.py')
         args = ['set_lat_lon_fields_in_planar_grid.py', '-f',
-                'ase_1km_preCull.nc', '-p', 'ais-bedmap2']
+                'AIS_4km.nc', '-p', 'ais-bedmap2']
 
         check_call(args, logger=logger)
 
         logger.info('calling MpasMaskCreator.x')
-        args = ['MpasMaskCreator.x', 'ase_1km_preCull.nc',
+        args = ['MpasMaskCreator.x', 'AIS_4km.nc',
                 'thwaites_mask.nc', '-f', 'thwaites_minimal.geojson']
 
         check_call(args, logger=logger)
 
         logger.info('culling to geojson file')
-        ds_mesh = xarray.open_dataset('ase_1km_preCull.nc')
+        ds_mesh = xarray.open_dataset('AIS_4km.nc')
         thwaitesMask = xarray.open_dataset('thwaites_mask.nc')
         ds_mesh = cull(ds_mesh, dsInverse=thwaitesMask, logger=logger)
         write_netcdf(ds_mesh, 'thwaites_culled.nc')
@@ -138,8 +141,8 @@ class Mesh(Step):
 
         logger.info('calling interpolate_to_mpasli_grid.py')
         args = ['interpolate_to_mpasli_grid.py', '-s',
-                'antarctica_1km_2020_10_20_ASE.nc',
-                '-d', 'Thwaites.nc', '-m', 'b']
+                'AIS_4km.nc',
+                '-d', 'Thwaites.nc', '-m', 'n']
         check_call(args, logger=logger)
 
         logger.info('Marking domain boundaries dirichlet')
