@@ -33,9 +33,9 @@ class Mesh(Step):
         self.add_input_file(filename='antarctica_8km_2020_10_20.nc',
                             target='antarctica_8km_2020_10_20.nc',
                             database='')
-        self.add_input_file(filename='thwaites_minimal.geojson',
+        self.add_input_file(filename='thwaites_extended.geojson',
                             package='compass.landice.tests.thwaites',
-                            target='thwaites_minimal.geojson',
+                            target='thwaites_extended.geojson',
                             database=None)
         self.add_input_file(filename='antarctica_1km_2020_10_20_ASE.nc',
                             target='antarctica_1km_2020_10_20_ASE.nc',
@@ -101,6 +101,7 @@ class Mesh(Step):
 
         copyfile('/global/cscratch1/sd/trhille/AIS_4to20km_r01_20220907/mesh_edits_20221013/AIS_4to20km_r01_20220907_m5_drop_bed_20m_bulldoze_troughs_75_to_400m_Enderby_maxstiffness_0.8_TG_pinning_40maf_bedmap2_surface_ASE.nc',
                  'AIS_4km.nc')
+        copyfile('/global/cfs/cdirs/piscees/MALI_input_files/Thwaites_4to20km_r02/ais_8km_preCull.nc', 'AIS_4km_preCull.nc')
         # This step is only necessary because the GeoJSON region
         # is defined by lat-lon.
         logger.info('calling set_lat_lon_fields_in_planar_grid.py')
@@ -110,13 +111,13 @@ class Mesh(Step):
         check_call(args, logger=logger)
 
         logger.info('calling MpasMaskCreator.x')
-        args = ['MpasMaskCreator.x', 'AIS_4km.nc',
-                'thwaites_mask.nc', '-f', 'thwaites_minimal.geojson']
+        args = ['MpasMaskCreator.x', 'AIS_4km_preCull.nc',
+                'thwaites_mask.nc', '-f', 'thwaites_extended.geojson']
 
         check_call(args, logger=logger)
 
         logger.info('culling to geojson file')
-        ds_mesh = xarray.open_dataset('AIS_4km.nc')
+        ds_mesh = xarray.open_dataset('AIS_4km_preCull.nc')
         thwaitesMask = xarray.open_dataset('thwaites_mask.nc')
         ds_mesh = cull(ds_mesh, dsInverse=thwaitesMask, logger=logger)
         write_netcdf(ds_mesh, 'thwaites_culled.nc')
