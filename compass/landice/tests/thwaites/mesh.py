@@ -101,7 +101,7 @@ class Mesh(Step):
 
         copyfile('/global/cscratch1/sd/trhille/AIS_4to20km_r01_20220907/mesh_edits_20221013/AIS_4to20km_r01_20220907_m5_drop_bed_20m_bulldoze_troughs_75_to_400m_Enderby_maxstiffness_0.8_TG_pinning_40maf_bedmap2_surface_ASE.nc',
                  'AIS_4km.nc')
-        copyfile('/global/cfs/cdirs/piscees/MALI_input_files/Thwaites_4to20km_r02/ais_8km_preCull.nc', 'AIS_4km_preCull.nc')
+        copyfile('/global/cfs/cdirs/piscees/MALI_input_files/Thwaites_4to20km_r02/ais_8km_preCull_no_cullCell.nc', 'AIS_4km_preCull.nc')
         # This step is only necessary because the GeoJSON region
         # is defined by lat-lon.
         logger.info('calling set_lat_lon_fields_in_planar_grid.py')
