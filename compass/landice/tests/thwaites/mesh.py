@@ -106,7 +106,7 @@ class Mesh(Step):
         # is defined by lat-lon.
         logger.info('calling set_lat_lon_fields_in_planar_grid.py')
         args = ['set_lat_lon_fields_in_planar_grid.py', '-f',
-                'AIS_4km.nc', '-p', 'ais-bedmap2']
+                'AIS_4km_preCull.nc', '-p', 'ais-bedmap2']
 
         check_call(args, logger=logger)
 
