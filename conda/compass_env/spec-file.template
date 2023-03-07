@@ -20,7 +20,7 @@ mache=1.10.0
 {% endif %}
 matplotlib-base
 metis
-mpas_tools=0.17.0
+mpas_tools=0.18.0
 nco
 netcdf4=*=nompi_*
 numpy
@@ -44,8 +44,8 @@ cmake
 cxx-compiler
 fortran-compiler
 libnetcdf=4.8.1={{ mpi_prefix }}_*
-libpnetcdf=1.12.3={{ mpi_prefix }}_*
-scorpio=1.4.1={{ mpi_prefix }}_*
+#libpnetcdf=1.12.3={{ mpi_prefix }}_*
+#scorpio=1.4.1={{ mpi_prefix }}_*
 m4
 make
 {{ mpi }}
