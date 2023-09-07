@@ -84,14 +84,14 @@ class Init(ConvInit):
 
         dist_sq = (xCell - x_center)**2 + (yCell - y_center)**2
 
-        passiveTracer = numpy.exp(-0.5 * dist_sq / gaussian_width**2)
-        passiveTracer = passiveTracer.expand_dims(dim='Time', axis=0)
+        passiveTracer2d = numpy.exp(-0.5 * dist_sq / gaussian_width**2)
+        passiveTracer2d = passiveTracer2d.expand_dims(dim='Time', axis=0)
 
         ds['layerThicknessFractions'] = layerThicknessFractions
         ds['thickness'] = thickness
         ds['bedTopography'] = bedTopography
         ds['uReconstructX'] = uReconstructX
         ds['uReconstructY'] = uReconstructY
-        ds['passiveTracer'] = passiveTracer
+        ds['passiveTracer2d'] = passiveTracer2d
 
         write_netcdf(ds, 'initial_state.nc')

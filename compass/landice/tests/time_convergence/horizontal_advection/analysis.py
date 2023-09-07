@@ -36,7 +36,7 @@ class Analysis(ConvAnalysis):
         ncells_list = list()
         errors = list()
         for dt in dts:
-            rms_error, ncells = self.rmse(dt, variable='passiveTracer')
+            rms_error, ncells = self.rmse(dt, variable='passiveTracer2d')
             ncells_list.append(ncells)
             errors.append(rms_error)
 

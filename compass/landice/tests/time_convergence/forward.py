@@ -132,7 +132,7 @@ class Forward(Step):
         # the duration (years) of the run
         duration = f'{duration:05d}-00-00_00:00:00'
 
-        namelist_replacements = {'config_dt': f"'{dt*sec_in_yr}'",
+        namelist_replacements = {'config_adaptive_timestep_CFL_fraction': f"{dt}",  # noqa
                                  'config_run_duration': f"'{duration}'"}
 
         stream_replacements = {'output_interval': duration}

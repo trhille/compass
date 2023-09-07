@@ -1,7 +1,10 @@
 config_velocity_solver = 'none'
 config_unrealistic_velocity = 1.0e36
-config_thickness_advection = 'fo'
-config_tracer_advection = 'fo'
-config_horiz_tracer_adv_order = 3
+config_thickness_advection = 'fct'
+config_tracer_advection = 'fct'
+config_horiz_tracer_adv_order = 4
 config_advection_coef_3rd_order = 1.0
+config_rk_order = 3
+config_time_integration = "forward_euler"
+config_adaptive_timestep = .true.
 config_start_time = '0001-01-01_00:00:00'
