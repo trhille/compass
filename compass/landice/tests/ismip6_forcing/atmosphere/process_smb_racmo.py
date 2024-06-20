@@ -111,8 +111,8 @@ class ProcessSmbRacmo(Step):
                 racmo_file_temp2]
         check_call(args, logger=logger)
 
-        args = ["ncap2", "-A", "-s",
-                "smb=smb.avg($time)",
+        args = ["ncra", "-O",
+                racmo_file_temp2,
                 racmo_file_temp2]
         check_call(args, logger=logger)
 
@@ -136,11 +136,13 @@ class ProcessSmbRacmo(Step):
 
         check_call(args, logger=logger)
 
+        # smb_std has dimensions of (height, nCells), but
+        # we need it to be (Time, nCells).
         args = ["ncap2", "-A", "-v", "-s",
-                "sfcMassBalUncertainty=smb_std/(60*60*24*365)",
+                "sfcMassBalUncertainty=(sfcMassBal*0.0 + "
+                "smb_std/(60*60*24*365)).avg($height)",
                 remapped_file_temp,
                 racmo_file_temp3]
-
         check_call(args, logger=logger)
 
         # change the unit attribute to kg/m^2/s
