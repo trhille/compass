@@ -83,7 +83,8 @@ class ProcessSmbRacmo(Step):
         method_remap = section.get("method_remap")
 
         racmo_file_temp1 = "RACMO2.3p2_smb_climatology_1995_2017.nc"
-        racmo_file_temp2 = "RACMO2.3p2_smb_climatology_1995_2017_" \
+        racmo_file_temp2 = "RACMO2.3p2_smb_climatology_1995_2017_std.nc"
+        racmo_file_temp3 = "RACMO2.3p2_smb_climatology_1995_2017_" \
                            "correct_unit.nc"
         output_file = f"{mali_mesh_name}_RACMO2.3p2_ANT27" \
                       f"_smb_climatology_1995-2017.nc"
@@ -99,10 +100,20 @@ class ProcessSmbRacmo(Step):
 
         input_file = self.inputs[1]
         # take the time average over the period 1995-2017
-        args = ["ncra", "-O", "-F", "-d", "time,17,39",
+        args = ["ncks", "-O", "-F", "-d", "time,17,39",
                 input_file,
                 racmo_file_temp1]
+        check_call(args, logger=logger)
 
+        args = ["ncap2", "-O", "-s",
+                "smb_std=(smb-smb.avg($time)).rmssdn($time)",
+                racmo_file_temp1,
+                racmo_file_temp2]
+        check_call(args, logger=logger)
+
+        args = ["ncap2", "-A", "-s",
+                "smb=smb.avg($time)",
+                racmo_file_temp2]
         check_call(args, logger=logger)
 
         # interpolate the racmo smb data
@@ -110,7 +121,7 @@ class ProcessSmbRacmo(Step):
 
         # call the function that reads in, remap and rename the file.
         logger.info("Calling the remapping function...")
-        self.remap_source_smb_to_mali(racmo_file_temp1,
+        self.remap_source_smb_to_mali(racmo_file_temp2,
                                       remapped_file_temp,
                                       mali_mesh_name,
                                       mali_mesh_file,
@@ -121,21 +132,35 @@ class ProcessSmbRacmo(Step):
         args = ["ncap2", "-O", "-v", "-s",
                 "sfcMassBal=smb/(60*60*24*365)",
                 remapped_file_temp,
-                racmo_file_temp2]
+                racmo_file_temp3]
+
+        check_call(args, logger=logger)
+
+        args = ["ncap2", "-A", "-v", "-s",
+                "sfcMassBalUncertainty=smb_std/(60*60*24*365)",
+                remapped_file_temp,
+                racmo_file_temp3]
 
         check_call(args, logger=logger)
 
         # change the unit attribute to kg/m^2/s
         args = ["ncatted", "-O", "-a",
                 "units,sfcMassBal,m,c,'kg m-2 s-1'",
-                racmo_file_temp2]
+                racmo_file_temp3]
+
+        check_call(args, logger=logger)
+
+        # change the unit attribute to kg/m^2/s
+        args = ["ncatted", "-O", "-a",
+                "units,sfcMassBalUncertainty,m,c,'kg m-2 s-1'",
+                racmo_file_temp3]
 
         check_call(args, logger=logger)
 
         # call the function that renames the ismip6 variables to MALI variables
         logger.info("Renaming source variables to mali variable names...")
 
-        self.rename_source_smb_to_mali_vars(racmo_file_temp2, output_file)
+        self.rename_source_smb_to_mali_vars(racmo_file_temp3, output_file)
 
         logger.info("Processing done successfully. "
                     "Removing the temporary files...")
@@ -143,6 +168,7 @@ class ProcessSmbRacmo(Step):
         os.remove(remapped_file_temp)
         os.remove(racmo_file_temp1)
         os.remove(racmo_file_temp2)
+        os.remove(racmo_file_temp3)
 
         # place the output file in appropriate directory
         output_path = f"{output_base_path}/atmosphere_forcing/" \
@@ -200,7 +226,7 @@ class ProcessSmbRacmo(Step):
                 "-i", input_file,
                 "-o", output_file,
                 "-m", mapping_file,
-                "-v", "smb"]
+                "-v", "smb,smb_std"]
 
         check_call(args, logger=self.logger)
 
