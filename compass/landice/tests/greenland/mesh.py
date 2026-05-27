@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import xarray as xr
 
@@ -6,6 +8,7 @@ from compass.landice.mesh import (
     build_mali_mesh,
     get_mesh_config_bounding_box,
     get_optional_interp_datasets,
+    interp_itslive_dhdt,
     make_region_masks,
     run_optional_interpolation,
 )
@@ -125,6 +128,26 @@ class Mesh(Step):
                 parallel_executable, nProcs,
                 bedmachine_dataset=bedmachine_dataset,
                 measures_dataset=measures_dataset)
+
+        # Interpolate ITS_LIVE dh/dt and mean surface elevation
+        data_path = section_gis.get('data_path', fallback=None)
+        itslive_filename = section_gis.get('itslive_dhdt_filename',
+                                           fallback=None)
+        dhdt_start = section_gis.get('dhdt_start_date', fallback=None)
+        dhdt_end = section_gis.get('dhdt_end_date', fallback=None)
+
+        if (data_path and itslive_filename and
+                dhdt_start and dhdt_end):
+            itslive_dataset = os.path.join(data_path, itslive_filename)
+            interp_itslive_dhdt(
+                self, itslive_dataset, self.mesh_filename,
+                parallel_executable, nProcs,
+                dhdt_start, dhdt_end,
+                proj=src_proj)
+        else:
+            logger.info('Skipping ITS_LIVE dh/dt interpolation because '
+                        'itslive_dhdt_filename, dhdt_start_date, or '
+                        'dhdt_end_date is not configured.')
 
         # create graph file
         logger.info('creating graph.info')

@@ -9,6 +9,7 @@ import jigsawpy
 import matplotlib.pyplot as plt
 import mpas_tools.io
 import numpy as np
+import pandas as pd
 import xarray
 from geometric_features import FeatureCollection, GeometricFeatures
 from matplotlib.path import Path
@@ -2002,3 +2003,223 @@ def run_optional_interpolation(
                 except OSError as exc:
                     logger.warning('Could not remove subset dataset '
                                    f'{subset_file}: {exc}')
+
+
+def interp_itslive_dhdt(self, itslive_dataset, dest_file,
+                        parallel_executable, nProcs,
+                        start_date, end_date, proj='gis-gimp',
+                        hull_path=None):
+    """
+    Compute dh/dt and mean surface elevation from the ITS_LIVE ice
+    elevation change dataset over a user-specified time window and
+    interpolate them to a MALI mesh.
+
+    The ITS_LIVE dataset contains cumulative surface elevation change
+    (``dh``) and absolute surface elevation (``h``) relative to a
+    reference epoch. This function selects the time window between
+    ``start_date`` and ``end_date``, computes dh/dt (m/yr) from the
+    endpoints, computes the time-mean ``h`` over the window, writes
+    both fields to a temporary gridded file, and remaps them to the
+    destination MALI mesh using conservative interpolation.
+
+    The interpolated fields are:
+
+    - ``observedThicknessTendency``: dh/dt in m/yr
+    - ``observedSurfaceElevation``: time-mean surface elevation (m)
+
+    Parameters
+    ----------
+    self : compass.step.Step
+        Step instance providing logger and context
+
+    itslive_dataset : str
+        Path to the ITS_LIVE ice elevation change netCDF file
+        (e.g. Greenland_G1920V01_IceSheetGlacierIceHeight.nc)
+
+    dest_file : str
+        MALI mesh file to which data should be remapped
+
+    parallel_executable : str
+        Parallel launcher executable (e.g. ``srun --label``, ``mpirun``)
+
+    nProcs : int or str
+        Number of processes for ESMF_RegridWeightGen
+
+    start_date : str
+        Start date for dh/dt computation (format: YYYY-MM-DD)
+
+    end_date : str
+        End date for dh/dt computation (format: YYYY-MM-DD)
+
+    proj : str, optional
+        Projection of the source dataset (default: 'gis-gimp')
+
+    hull_path : matplotlib.path.Path or None, optional
+        Pre-built buffered boundary of the destination mesh footprint.
+        If provided, avoids recomputing the hull.
+
+    Returns
+    -------
+    masked_source_scrip : str
+        Path to the masked source SCRIP file written during interpolation.
+    """
+
+    logger = self.logger
+
+    logger.info(f'Computing dh/dt and mean h from ITS_LIVE dataset between '
+                f'{start_date} and {end_date}')
+
+    ds = xarray.open_dataset(itslive_dataset)
+
+    # Convert user dates to the dataset's time coordinate
+    t_start = pd.Timestamp(start_date)
+    t_end = pd.Timestamp(end_date)
+
+    # Select nearest time steps for dh/dt endpoints
+    dh_start = ds['dh'].sel(time=t_start, method='nearest')
+    dh_end = ds['dh'].sel(time=t_end, method='nearest')
+
+    # Get actual selected times for accurate dt calculation
+    t0 = pd.Timestamp(dh_start.time.values)
+    t1 = pd.Timestamp(dh_end.time.values)
+    dt_years = (t1 - t0).total_seconds() / (365.25 * 24 * 3600)
+
+    logger.info(f'  Nearest start time: {t0.strftime("%Y-%m-%d")}')
+    logger.info(f'  Nearest end time:   {t1.strftime("%Y-%m-%d")}')
+    logger.info(f'  dt = {dt_years:.4f} years')
+
+    if dt_years <= 0:
+        raise ValueError(
+            f'end_date ({end_date}) must be after start_date ({start_date}). '
+            f'Selected time steps: {t0} and {t1}')
+
+    # Compute dh/dt in m/yr
+    dhdt = (dh_end.values - dh_start.values) / dt_years
+
+    # Compute dh/dt uncertainty by propagating RMS errors from endpoints
+    rms_start = ds['rms'].sel(time=t_start, method='nearest').values
+    rms_end = ds['rms'].sel(time=t_end, method='nearest').values
+    dhdt_err = np.sqrt(rms_start**2 + rms_end**2) / dt_years
+
+    # Compute time-mean surface elevation over the specified window
+    h_window = ds['h'].sel(time=slice(t_start, t_end))
+    h_mean = h_window.mean(dim='time').values
+    n_times = h_window.sizes['time']
+    logger.info(f'  Averaged h over {n_times} time steps')
+
+    # Compute surface elevation uncertainty as mean RMS over the window
+    rms_window = ds['rms'].sel(time=slice(t_start, t_end))
+    h_err = rms_window.mean(dim='time').values
+
+    # Write all fields to a temporary gridded netCDF file
+    dhdt_filename = 'itslive_dhdt.nc'
+    ds_out = xarray.Dataset(
+        {'observedThicknessTendency':
+         (['Time', 'y', 'x'], dhdt[np.newaxis].astype(np.float64)),
+         'observedThicknessTendencyUncertainty':
+         (['Time', 'y', 'x'], dhdt_err[np.newaxis].astype(np.float64)),
+         'observedSurfaceElevation':
+         (['Time', 'y', 'x'], h_mean[np.newaxis].astype(np.float64)),
+         'observedSurfaceElevationUncertainty':
+         (['Time', 'y', 'x'], h_err[np.newaxis].astype(np.float64))},
+        coords={'x': ds['x'], 'y': ds['y'], 'Time': [0.0]})
+    ds_out['observedThicknessTendency'].attrs = {
+        'units': 'm/yr',
+        'long_name': 'Observed thickness tendency (dh/dt)',
+        'comment': f'dh/dt computed from ITS_LIVE between '
+                   f'{t0.strftime("%Y-%m-%d")} and '
+                   f'{t1.strftime("%Y-%m-%d")}'}
+    ds_out['observedThicknessTendencyUncertainty'].attrs = {
+        'units': 'm/yr',
+        'long_name': 'Uncertainty in observed thickness tendency',
+        'comment': 'Propagated from ITS_LIVE RMS errors at endpoints: '
+                   'sqrt(rms_start^2 + rms_end^2) / dt'}
+    ds_out['observedSurfaceElevation'].attrs = {
+        'units': 'm',
+        'long_name': 'Mean observed surface elevation',
+        'comment': f'Time-mean surface elevation from ITS_LIVE between '
+                   f'{t0.strftime("%Y-%m-%d")} and '
+                   f'{t1.strftime("%Y-%m-%d")} '
+                   f'({n_times} time steps)'}
+    ds_out['observedSurfaceElevationUncertainty'].attrs = {
+        'units': 'm',
+        'long_name': 'Uncertainty in observed surface elevation',
+        'comment': f'Mean RMS error from ITS_LIVE over '
+                   f'{t0.strftime("%Y-%m-%d")} to '
+                   f'{t1.strftime("%Y-%m-%d")} '
+                   f'({n_times} time steps)'}
+    fill = 1.0e36
+    encoding = {v: {'_FillValue': fill} for v in ds_out.data_vars}
+    ds_out.to_netcdf(dhdt_filename, encoding=encoding)
+    ds.close()
+
+    logger.info(f'  Wrote dh/dt and mean h fields to {dhdt_filename}')
+
+    # Create destination SCRIP file if it doesn't already exist
+    mesh_base = os.path.splitext(dest_file)[0]
+    mali_scrip = f'{mesh_base}_scrip.nc'
+    if not os.path.exists(mali_scrip):
+        logger.info('creating scrip file for destination mesh')
+        scrip_from_mpas(dest_file, mali_scrip)
+
+    # Create source SCRIP file
+    logger.info('creating scrip file for ITS_LIVE dataset')
+    source_scrip = 'itslive_dhdt.scrip.nc'
+    args = ['create_scrip_file_from_planar_rectangular_grid',
+            '-i', dhdt_filename,
+            '-s', source_scrip,
+            '-p', proj,
+            '-r', '2']
+    check_call(args, logger=logger)
+
+    # Mask source SCRIP to destination mesh footprint
+    masked_source_scrip = 'itslive_dhdt.scrip_masked.nc'
+    logger.info('masking source SCRIP to destination mesh footprint')
+    add_grid_imask_from_dst_scrip_hull(
+        source_scrip=source_scrip,
+        dest_scrip=mali_scrip,
+        masked_source_scrip=masked_source_scrip,
+        domain=proj,
+        hull_path=hull_path,
+        logger=logger)
+
+    # Generate remapping weights
+    weights_filename = 'itslive_to_MPAS_weights.nc'
+    logger.info('generating ITS_LIVE -> MPAS weights')
+    args = parallel_executable.split() + [
+        '-n', str(nProcs),
+        'ESMF_RegridWeightGen',
+        '--source', masked_source_scrip,
+        '--destination', mali_scrip,
+        '--weight', weights_filename,
+        '--method', 'conserve',
+        '--netcdf4',
+        '--dst_regional',
+        '--src_regional',
+        '--ignore_unmapped']
+    check_call(args, logger=logger)
+
+    # Apply weights using ncremap (avoids MPAS-Tools variable name constraints)
+    remapped_filename = 'itslive_dhdt_remapped.nc'
+    logger.info('applying weights with ncremap')
+    args = ['ncremap',
+            '-m', weights_filename,
+            '-i', dhdt_filename,
+            '-o', remapped_filename]
+    check_call(args, logger=logger)
+
+    # Rename ncremap's default 'ncol' dimension to match MALI's 'nCells'
+    args = ['ncrename', '-d', 'ncol,nCells', remapped_filename]
+    check_call(args, logger=logger)
+
+    # Append remapped variables to the MALI mesh file
+    logger.info(f'appending ITS_LIVE fields to {dest_file}')
+    args = ['ncks', '-A', '-v',
+            'observedThicknessTendency,'
+            'observedThicknessTendencyUncertainty,'
+            'observedSurfaceElevation,'
+            'observedSurfaceElevationUncertainty',
+            remapped_filename, dest_file]
+    check_call(args, logger=logger)
+
+    return masked_source_scrip
