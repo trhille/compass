@@ -7,7 +7,11 @@ Variable-resolution global ocean mesh with 200m refinement at Thwaites grounding
 ### ✅ Implemented:
 1. **Base mesh generation** (`__init__.py`)
    - `Thwaites01to60BaseMesh` class
-   - Currently uses simple Gaussian refinement around Thwaites (~75°S, 106°W)
+   - **Grounding line extraction from BedMachine** (automatic, no geojson needed)
+   - Calculates flotation criterion: thickness > -bed × (ρ_ocean/ρ_ice)
+   - Identifies grounding line as boundary between grounded/floating ice
+   - Creates signed distance field for mesh refinement
+   - Falls back to Gaussian approximation if BedMachine unavailable
    - Configurable resolutions: 200m GZ, 1km cavity, 3km shelf, 8km far-field
 
 2. **Configuration** (`thwaites01to60.cfg`)
@@ -36,10 +40,12 @@ Variable-resolution global ocean mesh with 200m refinement at Thwaites grounding
    - ✅ Wired into Mesh test case for Thwaites meshes
    - ✅ Ready for testing
 
-2. **Replace Gaussian refinement with grounding-line-based refinement**
-   - Extract Thwaites grounding line from BedMachine v4
-   - Create `thwaites_grounding_line.geojson`
-   - Use `signed_distance_from_geojson` for accurate GZ band
+2. ~~**Replace Gaussian refinement with grounding-line-based refinement**~~ ✅ **DONE**
+   - ✅ Extracts grounding line directly from BedMachine
+   - ✅ Calculates flotation criterion automatically
+   - ✅ Uses `signed_distance_from_geojson` for accurate GZ band
+   - ✅ No manual geojson file required
+   - ⚠️ Requires BedMachine file in bathymetry database
 
 #### Medium Priority:
 3. **Add thin film support**
@@ -88,16 +94,25 @@ To disable regional culling (full global mesh), comment out all domain options.
 ## Implementation Notes
 
 ### Mesh Refinement:
-The current implementation uses an approximate Gaussian refinement:
-```python
-# Simple distance from Thwaites location
-thwaites_lat = -75.0
-thwaites_lon = -106.0
-# Create smooth transition zones
-```
+The implementation now extracts the grounding line directly from BedMachine:
 
-This should be replaced with actual grounding-line-based refinement using
-`signed_distance_from_geojson` (see FRIS meshes for examples).
+1. **Load BedMachine data** (ice thickness, bed elevation)
+2. **Calculate flotation criterion**:
+   ```python
+   # Ice is grounded when: thickness > -bed × (ρ_ocean/ρ_ice)
+   thickness_flotation = -bed * (1028.0 / 918.0)  # where bed < 0
+   grounded = thickness > thickness_flotation
+   ```
+3. **Identify grounding line**: Boundary between grounded and floating ice
+4. **Create feature collection**: Convert GL cells to geojson polygon
+5. **Calculate signed distance**: Use `signed_distance_from_geojson`
+6. **Apply refinement**:
+   - GZ band: ±15 km from GL → 200m resolution
+   - Cavity: 100 km into cavity → 1 km resolution  
+   - Shelf: 200 km into cavity → 3 km resolution
+   - Far-field: everywhere else → 8 km resolution
+
+**Fallback**: If BedMachine is unavailable, uses Gaussian approximation around Thwaites location (75°S, 106°W).
 
 ### Regional Culling:
 **Fully implemented and integrated!**
