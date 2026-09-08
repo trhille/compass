@@ -12,27 +12,29 @@ Variable-resolution global ocean mesh with 200m refinement at Thwaites grounding
 
 2. **Configuration** (`thwaites01to60.cfg`)
    - Resolution parameters
-   - Optional regional domain settings (currently commented out)
+   - Regional domain settings (enabled by default for Amundsen sector)
    - Thin film parameters (disabled by default)
 
-3. **Regional culling logic** (`modify_land_mask.py`)
-   - Step to modify land mask before culling
+3. **Regional culling** ✅ **FULLY INTEGRATED**
+   - `ThwaitesCullMeshStep` custom cull step (`cull_mesh.py`)
+   - Hook-based integration into standard culling workflow
+   - Modifies land mask to mark cells outside domain as land
    - Supports geojson polygon or lat-lon bounding box
-   - **Not yet integrated into workflow** (see below)
+   - **Working and ready to test**
 
 4. **Registration**
    - Mesh registered in `compass/ocean/tests/global_ocean/mesh/__init__.py`
-   - Can be listed/setup with compass (once compass is installed)
+   - Custom CullMeshStep wired in for Thwaites meshes
+   - Ready for `compass list` and `compass setup`
 
 ### 🚧 TODO:
 
 #### High Priority:
-1. **Integrate regional culling into CullMeshStep**
-   - Current challenge: `land_mask.nc` is created inside CullMeshStep
-   - Options:
-     - Modify CullMeshStep to support pre-processing hooks
-     - Create Thwaites-specific CullMeshStep subclass
-     - Add regional culling logic directly to base CullMeshStep
+1. ~~**Integrate regional culling into CullMeshStep**~~ ✅ **DONE**
+   - ✅ Added hook point in base `cull.py`
+   - ✅ Created `ThwaitesCullMeshStep` with hook file generation
+   - ✅ Wired into Mesh test case for Thwaites meshes
+   - ✅ Ready for testing
 
 2. **Replace Gaussian refinement with grounding-line-based refinement**
    - Extract Thwaites grounding line from BedMachine v4
@@ -65,19 +67,23 @@ compass setup -t global_ocean/mesh/Thwaites01to60 -w $WORK
 compass run $WORK
 ```
 
-### With regional domain (when integrated):
-Edit `thwaites01to60.cfg`:
+### With regional domain (enabled by default):
+Regional culling is **enabled by default** for Amundsen sector (76-73°S, 116-98°W).
+
+To change the domain, edit `thwaites01to60.cfg`:
 ```ini
 [thwaites01to60]
-# Option A: lat-lon bounds
-lat_min = -75.5
-lat_max = -74.0
-lon_min = -115.0
-lon_max = -100.0
+# Option A: lat-lon bounds (currently enabled)
+lat_min = -76.0
+lat_max = -73.0
+lon_min = -116.0
+lon_max = -98.0
 
 # Option B: geojson polygon
 # regional_domain_geojson = amundsen_domain.geojson
 ```
+
+To disable regional culling (full global mesh), comment out all domain options.
 
 ## Implementation Notes
 
@@ -94,14 +100,17 @@ This should be replaced with actual grounding-line-based refinement using
 `signed_distance_from_geojson` (see FRIS meshes for examples).
 
 ### Regional Culling:
-The `modify_land_mask.py` step contains the logic for regional culling:
-1. Load base mesh and land mask
-2. Determine cells inside/outside regional domain
-3. Mark outside cells as "land"
-4. Standard `CullMeshStep` then culls these cells
+**Fully implemented and integrated!**
 
-Integration challenge: land mask is created inside CullMeshStep's `run()` method,
-so we need a way to modify it before culling happens.
+The `ThwaitesCullMeshStep` (in `cull_mesh.py`) creates a hook file that:
+1. Is executed by the modified `cull.py` after land mask creation
+2. Loads base mesh and land mask
+3. Determines cells inside/outside regional domain
+4. Marks outside cells as "land"
+5. Standard culling then removes these cells
+
+The hook runs between lines 307 and 308 of `compass/ocean/mesh/cull.py`,
+after `land_mask.nc` is created but before culling begins.
 
 ### Thin Film:
 Will require:
