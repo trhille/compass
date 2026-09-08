@@ -13,6 +13,7 @@ from compass.ocean.tests.global_ocean.mesh.fris02to60 import FRIS02to60BaseMesh
 from compass.ocean.tests.global_ocean.mesh.fris04to60 import FRIS04to60BaseMesh
 from compass.ocean.tests.global_ocean.mesh.fris08to60 import FRIS08to60BaseMesh
 from compass.ocean.tests.global_ocean.mesh.thwaites01to60 import Thwaites01to60BaseMesh
+from compass.ocean.tests.global_ocean.mesh.thwaites01to60.cull_mesh import ThwaitesCullMeshStep
 from compass.ocean.tests.global_ocean.mesh.kuroshio import KuroshioBaseMesh
 from compass.ocean.tests.global_ocean.mesh.qu import (
     IcosMeshFromConfigStep,
@@ -194,10 +195,17 @@ class Mesh(TestCase):
 
             self.add_step(smoothed_topo)
 
-        self.add_step(CullMeshStep(
-            test_case=self, base_mesh_step=base_mesh_step,
-            with_ice_shelf_cavities=self.with_ice_shelf_cavities,
-            unsmoothed_topo=unsmoothed_topo, smoothed_topo=smoothed_topo))
+        # Use custom cull step for Thwaites meshes (supports regional culling)
+        if mesh_name.startswith('Thwaites'):
+            self.add_step(ThwaitesCullMeshStep(
+                test_case=self, base_mesh_step=base_mesh_step,
+                with_ice_shelf_cavities=self.with_ice_shelf_cavities,
+                unsmoothed_topo=unsmoothed_topo, smoothed_topo=smoothed_topo))
+        else:
+            self.add_step(CullMeshStep(
+                test_case=self, base_mesh_step=base_mesh_step,
+                with_ice_shelf_cavities=self.with_ice_shelf_cavities,
+                unsmoothed_topo=unsmoothed_topo, smoothed_topo=smoothed_topo))
 
     def configure(self, config=None):
         """
