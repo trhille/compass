@@ -3,9 +3,9 @@ Shared helpers for remapping ISMIP7 forcing data to the MALI mesh.
 """
 import os
 
+import netCDF4
 import numpy as np
 import xarray as xr
-from mpas_tools.io import write_netcdf
 from scipy.ndimage import distance_transform_edt
 
 
@@ -60,5 +60,20 @@ def extrapolate_source(input_file, output_file, varnames, logger):
         if "_FillValue" in ds[varname].encoding:
             del ds[varname].encoding["_FillValue"]
 
-    write_netcdf(ds, output_file)
+    # Preserve a fill value for slabs that remain fully invalid after
+    # extrapolation so ncremap ignores them during interpolation.
+    encoding = {}
+    for varname in varnames:
+        dtype = ds[varname].dtype
+        if np.issubdtype(dtype, np.floating) and \
+                bool(np.any(np.isnan(ds[varname].values))):
+            fill = netCDF4.default_fillvals[dtype.str[1:]]
+            encoding[varname] = {"_FillValue": dtype.type(fill)}
+
+    # Write CDF-5 (NETCDF3_64BIT_DATA): a classic-model format with 64-bit
+    # sizes that supports very large variables (e.g. AIS 3D ocean thermal
+    # forcing) without the HDF5 chunk-size limits that make ncremap unable to
+    # open large NETCDF4 files. This is a temporary file consumed by ncremap.
+    ds.to_netcdf(output_file, format="NETCDF3_64BIT_DATA", engine="netcdf4",
+                 encoding=encoding)
     ds.close()

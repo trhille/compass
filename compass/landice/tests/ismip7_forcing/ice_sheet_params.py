@@ -42,6 +42,15 @@ _OCX_OVERRIDES = {
         'atm_model': 'RACMO2.3p2-ERA',
         'ocean_model': 'EN4',
     },
+    'ais': {
+        'atm_version': 'v1',
+        'ocean_version': 'v1',
+        'atm_model': 'RACMO2.3p2-ERA',
+        'ocean_model': None,
+        # AIS OCX ocean files have no model token and live in per-choice
+        # subdirectories (main/cold/warm/vary); see process_thermal_forcing.
+        'ocean_choice_layout': True,
+    },
 }
 
 
