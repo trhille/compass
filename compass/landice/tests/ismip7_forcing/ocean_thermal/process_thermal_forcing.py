@@ -136,6 +136,15 @@ class ProcessThermalForcing(Step):
                 start_year, end_year, mali_mesh_name, mali_mesh_file,
                 output_base_path)
 
+        # AIS OCX writes one ocean_thermal_forcing dir per ocean choice
+        # (OCX_<choice>), but atmosphere output is written once, under OCX.
+        # Mirror the atmosphere files into each OCX_<choice> directory so
+        # ismip7_run can treat it as a single, self-contained forcing dir.
+        if params.get('ocean_choice_layout', False):
+            for job in jobs:
+                self._link_atmosphere_outputs(
+                    output_base_path, scenario, job['forcing_group'])
+
     def _get_ocean_choices(self, config):
         """
         Parse the comma-separated ``ocean_choice`` option (AIS OCX only) into a
@@ -169,6 +178,51 @@ class ProcessThermalForcing(Step):
             raise ValueError(
                 "No ocean_choice specified for AIS OCX ocean forcing.")
         return choices
+
+    def _link_atmosphere_outputs(self, output_base_path, atm_forcing_group,
+                                 choice_forcing_group):
+        """
+        Symlink the shared atmosphere output files into an ocean-choice
+        forcing directory (e.g. OCX_main) so it mirrors the atmosphere's
+        directory (e.g. OCX) and can be used standalone as an
+        ``ocx_forcing_path`` by ismip7_run.
+
+        Parameters
+        ----------
+        output_base_path : str
+            Base path under which output is written
+
+        atm_forcing_group : str
+            Name of the directory under ``output_base_path`` that holds the
+            actual atmosphere output files (e.g. 'OCX')
+
+        choice_forcing_group : str
+            Name of the ocean-choice directory to populate with symlinks
+            (e.g. 'OCX_main')
+        """
+        logger = self.logger
+        src_dir = os.path.join(output_base_path, atm_forcing_group,
+                               "atmosphere")
+        if not os.path.isdir(src_dir):
+            logger.warning(
+                f"Atmosphere output not found at {src_dir}; skipping "
+                f"atmosphere symlinks for {choice_forcing_group}. Run the "
+                f"atmosphere test case to populate it.")
+            return
+
+        dst_dir = os.path.join(output_base_path, choice_forcing_group,
+                               "atmosphere")
+        os.makedirs(dst_dir, exist_ok=True)
+
+        for fname in os.listdir(src_dir):
+            src = os.path.join(src_dir, fname)
+            if not os.path.isfile(src):
+                continue
+            dst = os.path.join(dst_dir, fname)
+            if os.path.lexists(dst):
+                os.remove(dst)
+            os.symlink(src, dst)
+            logger.info(f"  Linked {dst} -> {src}")
 
     def _process_ocean_forcing(self, job, mapping_file, ocean_3d,
                                method_remap, start_year, end_year,
