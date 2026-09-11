@@ -74,6 +74,8 @@ def extrapolate_source(input_file, output_file, varnames, logger):
     # sizes that supports very large variables (e.g. AIS 3D ocean thermal
     # forcing) without the HDF5 chunk-size limits that make ncremap unable to
     # open large NETCDF4 files. This is a temporary file consumed by ncremap.
+    for variable in ds.variables.values():
+        variable.encoding = {}
     ds.to_netcdf(output_file, format="NETCDF3_64BIT_DATA", engine="netcdf4",
                  encoding=encoding)
     ds.close()
