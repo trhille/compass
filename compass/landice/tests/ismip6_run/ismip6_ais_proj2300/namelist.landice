@@ -26,7 +26,7 @@
     config_calving_error_threshold = 100000.0
 
     config_thermal_solver = 'temperature'
-    config_thermal_calculate_bmb = .true.
+    config_thermal_calculate_bmb = .false.
     config_temperature_init = 'file'
     config_thermal_thickness = 0.0
     config_surface_air_temperature_source = 'file'
@@ -75,7 +75,7 @@
     config_AM_globalStats_compute_on_startup = .true.
     config_AM_globalStats_write_on_startup = .true.
 
-    config_AM_regionalStats_enable = .true.
+    config_AM_regionalStats_enable = .false.
     config_AM_regionalStats_compute_interval = 'output_interval'
     config_AM_regionalStats_stream_name = 'regionalStatsOutput'
     config_AM_regionalStats_compute_on_startup = .true.
