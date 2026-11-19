@@ -17,21 +17,20 @@
                   reference_time="2000-01-01_00:00:00"
                   filename_template="rst.$Y-$M-$D.nc"
                   input_interval="initial_only"
-                  type="input;output"
-                  input_interal="initial_only"/>
+                  type="input;output"/>
 
+<!--
 <stream name="regionsInput"
         type="input"
-        mode="forward;analysis"
         filename_template="{{ input_file_region_mask }}"
         input_interval="initial_only"
         runtime_format="single_file">
         <var name="regionCellMasks"/>
 </stream>
+-->
 
 <stream name="ismip6_smb"
         type="input"
-        mode="forward;analysis"
         filename_template="{{ input_file_SMB_forcing }}"
         input_interval="{{ forcing_interval }}"
         reference_time="2000-01-01_00:00:00"
@@ -41,7 +40,6 @@
 
 <stream name="ismip6_TF"
         type="input"
-        mode="forward;analysis"
         filename_template="{{ input_file_TF_forcing }}"
         input_interval="{{ forcing_interval }}"
         reference_time="2000-01-01_00:00:00"
@@ -52,7 +50,6 @@
 
 <stream name="ismip6_params"
         type="input"
-        mode="forward;analysis"
         filename_template="{{ input_file_melt_params }}"
         input_interval="initial_only"
         runtime_format="single_file">
@@ -73,25 +70,18 @@
     <var name="xtime"/>
     <var name="simulationStartTime"/>
     <var name="thickness"/>
-    <var name="lowerSurface"/>
-    <var name="upperSurface"/>
     <var name="bedTopography"/>
-    <var name="uReconstructX"/>
-    <var name="uReconstructY"/>
     <var name="surfaceSpeed"/>
     <var name="xvelmean"/>
     <var name="yvelmean"/>
     <var name="basalTemperature"/>
-    <var name="surfaceTemperature"/>
-    <var name="betaSolve"/>
     <var name="daysSinceStart"/>
     <var name="cellProcID"/>
     <var name="cellMask"/>
     <var name="deltat"/>
-    <var name="vonMisesStress"/>
-    <var name="damage"/>
 </stream>
 
+<!--
 <stream name="output_flux"
         clobber_mode="overwrite"
         output_interval="0000-00-00_00:00:01"
@@ -120,6 +110,7 @@
     <var name="thickness"/>
     <var name="dHdt"/>
 </stream>
+-->
 
 <stream name="globalStatsOutput"
         type="output"
@@ -140,6 +131,7 @@
     <var name="albanyVelocityError"/>
 </stream>
 
+<!--
 <stream name="regionalStatsOutput"
         type="output"
         filename_template="output/regionalStats.nc"
@@ -155,5 +147,6 @@
     <var name="simulationStartTime"/>
     <var_struct name="regionalStatsAM"/>
 </stream>
+-->
 
 </streams>
