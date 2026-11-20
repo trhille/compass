@@ -119,7 +119,7 @@ class SetUpExperiment(Step):
             if exp_num >= 11:
                 mask_search_path = os.path.join(
                     forcing_basepath, exp_fcg,
-                    'Antarctica_8to30km_ice_shelf_collapse_mask_*.nc')
+                    '*ice_shelf_collapse_mask_*.nc')
                 fcgFileList = glob.glob(mask_search_path)
                 if len(fcgFileList) == 1:
                     mask_path = fcgFileList[0]
